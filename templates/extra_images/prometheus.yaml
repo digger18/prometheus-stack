@@ -1,0 +1,23 @@
+{{- if .Values.global.extraImages }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: prometheus-extra-images
+spec:
+  containers:
+  - name: prometheus
+    image: quay.io/prometheus/prometheus:v2.17.2
+    command: ["sh", "-c"]
+    args:
+      - exit 0
+  - name: prometheus-configmap-reloader
+    image: quay.io/coreos/prometheus-config-reloader:v0.31.1
+    command: ["sh", "-c"]
+    args:
+      - exit 0
+  - name: configmap-reload
+    image: quay.io/coreos/configmap-reload:v0.0.1
+    command: ["sh", "-c"]
+    args:
+      - exit 0
+{{- end }}

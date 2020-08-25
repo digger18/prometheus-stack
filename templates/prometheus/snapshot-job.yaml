@@ -1,0 +1,71 @@
+{{- if .Values.prometheusSnapshot.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prometheus-snaphost
+  namespace: "{{.Release.Namespace}}"
+  labels:
+    tier: backend
+    app: prometheus-snaphost
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: prometheus-snaphost
+        run: prometheus-snaphost
+    spec:
+      nodeSelector:
+        backend: "true"
+      imagePullSecrets:
+        - name: imagepullsecret
+      restartPolicy: Never
+      enableServiceLinks: false
+      containers:
+      - name: prometheus-snaphost
+        image: "{{default .Values.prometheus.prometheusSpec.snapshotImage.registry .Values.global.localRegistry}}{{ .Values.prometheus.prometheusSpec.snapshotImage.repository }}:{{ .Values.prometheus.prometheusSpec.snapshotImage.tag }}"
+        command: ["/root/snapshot.sh"]
+        imagePullPolicy: "IfNotPresent"
+        volumeMounts:
+        # - name: tz-config
+        #   mountPath: /etc/localtime
+        #   readOnly: true
+        - name: ssd-dir
+          mountPath: /ssd/
+        - name: prom-snapshot
+          mountPath: /storage/prom-snapshot/
+        - name: kubectl
+          mountPath: /usr/local/bin/kubectl
+        - name: snapshot-script
+          mountPath: /root/snapshot.sh
+          subPath: snapshot.sh
+        # envFrom:
+        # - configMapRef:
+        #     name: global-env
+        env:
+        - name: CONSUL_AGENT
+          value: "consul-server.default.svc.cluster.local"
+        - name: CONSUL_SERVER
+          value: "consul-server.default.svc.cluster.local"
+      volumes:
+      # - name: tz-config
+      #   hostPath:
+      #      path: /etc/localtime
+      #      type: File
+      - name: prom-snapshot
+        hostPath:
+          path: /storage/prom-snapshot
+          type: DirectoryOrCreate
+      - name: ssd-dir
+        hostPath:
+          path: /ssd
+          type: DirectoryOrCreate
+      - name: kubectl
+        hostPath:
+          path: /usr/bin/kubectl
+          type: File
+      - name: snapshot-script
+        configMap:
+          name: snapshot-script
+          defaultMode: 0760
+{{- end }}

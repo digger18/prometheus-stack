@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snapshot-script
+  namespace: "{{.Release.Namespace}}"
+data:
+  snapshot.sh: |
+    #!/bin/bash
+    echo taking snapshot form prom;
+    SNAP_ID=$(curl -s -XPOST http://prometheus-stack-prometheus.{{.Release.Namespace}}:9090/api/v1/admin/tsdb/snapshot | jq -r .data.name);
+    echo Backing snap-id ${SNAP_ID}
+    PVC_NAME=$(/usr/local/bin/kubectl get pvc -n {{.Release.Namespace}} -l app=prometheus --no-headers --output=custom-columns=PHASE:.spec.volumeName);
+    echo snap is at pvc ${PVC_NAME}
+    GZIP=-9 tar cvzf /storage/prom-snapshot/${SNAP_ID}.tar.gz /ssd/local-path-provisioner/${PVC_NAME}/prometheus-db/snapshots/${SNAP_ID};
+    rm -rf /ssd/local-path-provisioner/${PVC_NAME}/prometheus-db/snapshots/${SNAP_ID}
+    ls -l /storage/prom-snapshot;
+    echo BACKUP SAVED TO /storage/prom-snapshot/${SNAP_ID}.tar.gz

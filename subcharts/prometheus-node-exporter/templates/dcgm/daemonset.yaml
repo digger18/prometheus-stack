@@ -1,0 +1,37 @@
+{{- if .Values.dcgmExporter.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "nvidia-dcgm-exporter.fullname" . }}
+  labels: {{ include "nvidia-dcgm-exporter.labels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "nvidia-dcgm-exporter.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels: {{ include "nvidia-dcgm-exporter.labels" . | indent 8 }}
+    spec:
+      tolerations:
+      - operator: Exists
+    {{- if .Values.dcgmExporter.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.dcgmExporter.nodeSelector | indent 8 }}
+      {{- end }}
+      containers:
+{{- with .Values.dcgmExporter }}
+      - name: {{ .container.name }}
+      {{- end }}
+        image: {{ template "nvidia-dcgm-exporter.image" . }}
+      {{- with .Values.dcgmExporter }}
+        securityContext:
+{{ toYaml .container.securityContext | indent 12 }}
+        volumeMounts:
+{{ toYaml .container.volumeMounts | indent 12 }}
+        {{- end }}
+      volumes:
+      {{- if and .Values.dcgmExporter.container .Values.dcgmExporter.container.volumes }}
+{{ toYaml .Values.dcgmExporter.container.volumes | indent 8 }}
+      {{- end }}
+{{- end }}
