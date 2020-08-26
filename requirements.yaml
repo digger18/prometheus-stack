@@ -1,26 +1,26 @@
 dependencies:
 
   - name: kube-state-metrics
-    version: 1.9.7
+    version: "2.9.*"
     repository: file://subcharts/kube-state-metrics
     condition: kubeStateMetrics.enabled
 
   - name: prometheus-node-exporter
-    version: 1.0.1
+    version: "1.0.*"
     repository: file://subcharts/prometheus-node-exporter
     condition: nodeExporter.enabled
 
   - name: grafana
-    version: 3.8.10
+    version: "5.5.*"
     repository: file://subcharts/grafana
     condition: grafana.enabled
 
   - name: prometheus-pushgateway
-    version: 0.10.0
+    version: "1.4.*"
     repository: file://subcharts/prometheus-pushgateway
     condition: prometheus-pushgateway.enabled
 
   - name: prometheus-adapter
-    version: 0.7.0
+    version: "2.5.*"
     repository: file://subcharts/prometheus-adapter
     condition: prometheus-adapter.enabled

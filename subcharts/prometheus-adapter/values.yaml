@@ -10,6 +10,8 @@ logLevel: 4
 
 metricsRelistInterval: 1m
 
+listenPort: 6443
+
 nodeSelector: {}
 
 priorityClassName: ""
@@ -18,6 +20,7 @@ priorityClassName: ""
 prometheus:
   url: http://prometheus-stack-prometheus.infra
   port: 9090
+  path: ""
 
 replicas: 1
 
@@ -53,14 +56,14 @@ rules:
   # Mounts a configMap with pre-generated rules for use. Overrides the
   # default, custom, external and resource entries
   existing:
-  external:
-  - seriesQuery: '{__name__=~"^num_of_active_streams_per_gpu$"}'
-    resources:
-     template: <<.Resource>>
-    name:
-     matches: ""
-     as: "num_of_active_streams_per_gpu"
-    metricsQuery: sum(<<.Series>>{<<.LabelMatchers>>}) by (<<.GroupBy>>)
+  external: []
+# - seriesQuery: '{__name__=~"^some_metric_count$"}'
+#   resources:
+#     template: <<.Resource>>
+#   name:
+#     matches: ""
+#     as: "my_external_metric"
+#   metricsQuery: sum(<<.Series>>{<<.LabelMatchers>>}) by (<<.GroupBy>>)
   resource: {}
 #   cpu:
 #     containerQuery: sum(rate(container_cpu_usage_seconds_total{<<.LabelMatchers>>}[3m])) by (<<.GroupBy>>)

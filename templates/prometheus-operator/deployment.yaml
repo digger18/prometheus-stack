@@ -1,8 +1,10 @@
+{{- $namespace := printf "%s" (include "prometheus-operator.namespace" .) }}
 {{- if .Values.prometheusOperator.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ template "prometheus-operator.fullname" . }}-operator
+  namespace: {{ template "prometheus-operator.namespace" . }}
   labels:
     app: {{ template "prometheus-operator.name" . }}-operator
 {{ include "prometheus-operator.labels" . | indent 4 }}
@@ -11,7 +13,7 @@ spec:
   selector:
     matchLabels:
       app: {{ template "prometheus-operator.name" . }}-operator
-      release: {{ .Release.Name | quote }}
+      release: {{ $.Release.Name | quote }}
   template:
     metadata:
       labels:
@@ -30,9 +32,16 @@ spec:
     {{- end }}
       containers:
         - name: {{ template "prometheus-operator.name" . }}
+          {{- if .Values.prometheusOperator.image.sha }}
+          image: "{{default .Values.prometheusOperator.image.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.image.repository }}:{{ .Values.prometheusOperator.image.tag }}@sha256:{{ .Values.prometheusOperator.image.sha }}"
+          {{- else }}
           image: "{{default .Values.prometheusOperator.image.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.image.repository }}:{{ .Values.prometheusOperator.image.tag }}"
+          {{- end }}
           imagePullPolicy: "{{ .Values.prometheusOperator.image.pullPolicy }}"
           args:
+          {{- if semverCompare "< v0.39.0" .Values.prometheusOperator.image.tag }}
+            - --manage-crds={{ .Values.prometheusOperator.manageCrds }}
+          {{- end }}
           {{- if .Values.prometheusOperator.kubeletService.enabled }}
             - --kubelet-service={{ .Values.prometheusOperator.kubeletService.namespace }}/{{ template "prometheus-operator.fullname" . }}-kubelet
           {{- end }}
@@ -42,17 +51,30 @@ spec:
           {{- if .Values.prometheusOperator.logLevel }}
             - --log-level={{ .Values.prometheusOperator.logLevel }}
           {{- end }}
+          {{- if .Values.prometheusOperator.denyNamespaces }}
+            - --deny-namespaces={{ .Values.prometheusOperator.denyNamespaces | join "," }}
+          {{- end }}
+          {{- with $.Values.prometheusOperator.namespaces }}
+          {{ $ns := .additional }}
+          {{- if .releaseNamespace }}
+          {{- $ns = append $ns $namespace }}
+          {{- end }}
+            - --namespaces={{ $ns | join "," }}
+          {{- end }}
             - --logtostderr=true
-            - --crd-apigroup={{ .Values.prometheusOperator.crdApiGroup | default "monitoring.coreos.com" }}
             - --localhost=127.0.0.1
+            {{- if .Values.prometheusOperator.prometheusConfigReloaderImage.sha }}
+            - --prometheus-config-reloader={{default .Values.prometheusOperator.prometheusConfigReloaderImage.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.prometheusConfigReloaderImage.repository }}:{{ .Values.prometheusOperator.prometheusConfigReloaderImage.tag }}@sha256:{{ .Values.prometheusOperator.prometheusConfigReloaderImage.sha }}
+            {{- else }}
             - --prometheus-config-reloader={{default .Values.prometheusOperator.prometheusConfigReloaderImage.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.prometheusConfigReloaderImage.repository }}:{{ .Values.prometheusOperator.prometheusConfigReloaderImage.tag }}
+            {{- end }}
+            {{- if .Values.prometheusOperator.configmapReloadImage.sha }}
+            - --config-reloader-image={{default .Values.prometheusOperator.configmapReloadImage.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.configmapReloadImage.repository }}:{{ .Values.prometheusOperator.configmapReloadImage.tag }}@sha256:{{ .Values.prometheusOperator.configmapReloadImage.sha }}
+            {{- else }}
             - --config-reloader-image={{default .Values.prometheusOperator.configmapReloadImage.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.configmapReloadImage.repository }}:{{ .Values.prometheusOperator.configmapReloadImage.tag }}
-          {{- if .Values.prometheusOperator.configReloaderCpu }}
+            {{- end }}
             - --config-reloader-cpu={{ .Values.prometheusOperator.configReloaderCpu }}
-          {{- end }}
-          {{- if .Values.prometheusOperator.configReloaderMemory }}
             - --config-reloader-memory={{ .Values.prometheusOperator.configReloaderMemory }}
-          {{- end }}
           ports:
             - containerPort: 8080
               name: http
@@ -63,7 +85,11 @@ spec:
             readOnlyRootFilesystem: true
         {{- if .Values.prometheusOperator.tlsProxy.enabled }}
         - name: tls-proxy
-          image: "{{default .Values.prometheusOperator.tlsProxy.image.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.tlsProxy.image.repository }}:{{ .Values.prometheusOperator.tlsProxy.image.tag }}"
+          {{- if .Values.prometheusOperator.tlsProxy.image.sha }}
+          image: {{default .Values.prometheusOperator.tlsProxy.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.tlsProxy.image.repository }}:{{ .Values.prometheusOperator.tlsProxy.image.tag }}@sha256:{{ .Values.prometheusOperator.tlsProxy.image.sha }}
+          {{- else }}
+          image: {{default .Values.prometheusOperator.tlsProxy.registry .Values.global.localRegistry}}{{ .Values.prometheusOperator.tlsProxy.image.repository }}:{{ .Values.prometheusOperator.tlsProxy.image.tag }}
+          {{- end }}
           imagePullPolicy: {{ .Values.prometheusOperator.tlsProxy.image.pullPolicy }}
           args:
             - server
@@ -72,10 +98,8 @@ spec:
             - --key=cert/key
             - --cert=cert/cert
             - --disable-authentication
-{{- if .Values.prometheusOperator.tlsProxy.resources }}
           resources:
-{{ toYaml .Values.prometheusOperator.tlsProxy.resources | indent 10 }}
-{{- end }}
+{{ toYaml .Values.prometheusOperator.tlsProxy.resources | indent 12 }}
           volumeMounts:
           - name: tls-proxy-secret
             mountPath: /cert
@@ -99,6 +123,10 @@ spec:
 {{ toYaml .Values.prometheusOperator.securityContext | indent 8 }}
 {{- end }}
       serviceAccountName: {{ template "prometheus-operator.operator.serviceAccountName" . }}
+{{- if .Values.prometheusOperator.hostNetwork }}
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+{{- end }}
     {{- with .Values.prometheusOperator.nodeSelector }}
       nodeSelector:
 {{ toYaml . | indent 8 }}
